@@ -81,16 +81,16 @@ class Board:
         else:
             self._board = np.array(board)
 
-        if rseed == None:
+        if rseed is None:
             rseed = datetime.now()
 
         random.seed(rseed)
 
-        self._pickNewNext()
-        self._spawnPiece()
-
         self.score = 0
         self.dead = False
+
+        self._pickNewNext()
+        self._spawnPiece()
 
     # checks if the current location of the piece is valid
     #   i.e. doesn't intersect with already placed blocks    
@@ -136,7 +136,6 @@ class Board:
             self._board[pos] = utils.shape_values[self.curPiece.piece_str]
         self._clearLines()
     
-
     # public interface; this is how the player will interact
     # action currently should be a string representing what the player
     # chose to do
@@ -167,8 +166,14 @@ class Board:
                 return 0
         return 1
 
-    def __str__(self):
+    def state(self):
+        bstate = copy.deepcopy(self._board)
+        for pos in self.curPiece.occupied():
+            bstate[pos] = utils.shape_values[self.curPiece.piece_str]
+        
+        return bstate
 
+    def __str__(self):
         temp = copy.deepcopy(self._board)
         for pos in self.curPiece.occupied():
             temp[pos] = utils.shape_values[self.curPiece.piece_str]
