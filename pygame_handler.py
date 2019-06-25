@@ -2,6 +2,7 @@ import pygame
 from tetris import Board
 import utils
 
+
 class GraphicsHandler:
     def __init__(self):
         pygame.display.set_caption('teetris')
@@ -35,35 +36,62 @@ class GraphicsHandler:
         self._draw_centered_text(text, pos, size, color, bold)
 
     def _draw_board(self, bstate):
-        tlx = self.top_left_x()
-        tly = self.top_left_y()
+        tlx, tly = self.top_left_x(), self.top_left_y()
 
         for i in range(len(bstate)):
             for j in range(len(bstate[0])):
-                pygame.draw.rect(self.win, utils.VAL_TO_COLOR[bstate[i][j]], (tlx + j* self.block_size, tly + i * self.block_size, self.block_size, self.block_size), 0)
-        
-        pygame.draw.rect(self.win, (169, 169, 169), (tlx, tly, self.play_width, self.play_height), 5)
-    
+                pygame.draw.rect(self.win, utils.VAL_TO_COLOR[bstate[i][j]], (
+                    tlx + j * self.block_size, tly + i * self.block_size, self.block_size, self.block_size), 0)
+
+        pygame.draw.rect(self.win, (169, 169, 169), (tlx, tly,
+                                                     self.play_width, self.play_height), 5)
+
+    def _draw_next_box(self, piece_str):
+        tlx, tly = self.top_left_x() + self.play_width + 50, self.top_left_y() + 50
+
+        shape = utils.shapes[piece_str]
+        color = utils.VAL_TO_COLOR[utils.shape_values[piece_str]]
+
+        for i in range(len(shape)):
+            for j in range(len(shape)):
+                if shape[i][j] != 0:
+                    pygame.draw.rect(self.win, color, (tlx + j * self.block_size,
+                                                       tly + i * self.block_size, self.block_size, self.block_size), 0)
+
     def _draw_score(self, score):
-        self._draw_text('Score: {}'.format(score), (self.top_left_x(), self.top_left_y() + self.play_height))
+        self._draw_text('Score: {}'.format(
+            score), (self.top_left_x(), self.top_left_y() + self.play_height))
 
     def _clear_board(self):
         self.win.fill((0, 0, 0))
 
+    def _draw_grid(self):
+        tlx, tly = self.top_left_x(), self.top_left_y()
+        for i in range(20):
+            pygame.draw.line(self.win, (50, 50, 50), (tlx, tly + i*30),
+                             (tlx + self.play_width, tly + i * 30))  # horizontal lines
+            for j in range(10):
+                pygame.draw.line(self.win, (50, 50, 50), (tlx + j * 30, tly),
+                                 (tlx + j * 30, tly + self.play_height))  # vertical lines
+
     def draw_game(self, board):
         self._clear_board()
         self._draw_board(board.state())
+        self._draw_grid()
         self._draw_score(board.score)
+        self._draw_next_box(board.nextPiece)
         # implement more drawings for the game e.g. controls
 
     def draw_main_menu(self):
         self._clear_board()
         self._draw_text_middle('Press any key', bold=True)
         pygame.display.update()\
-    
+
+
     def draw_lose(self, score):
         self._clear_board()
-        self._draw_text_middle('You Lost\nYour Score was {}'.format(score), bold=True)
+        self._draw_text_middle(
+            'You Lost\nYour Score was {}'.format(score), bold=True)
 
     def top_left_x(self):
         return (self.win_width - self.play_width) / 2
@@ -72,6 +100,7 @@ class GraphicsHandler:
         return (self.win_height - self.play_height) / 2
 
 # tester code follows
+
 
 def main():
     pygame.init()
@@ -88,13 +117,13 @@ def main():
                 run = False
 
             if event.type == pygame.KEYDOWN:
-                gh.draw_board(b.state())
+                gh.draw_game(b)
                 pygame.display.update()
 
     pygame.display.quit()
     pygame.quit()
     quit()
-            
+
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,7 @@
+import sys
+import pygame
 from tetris import Board
 from pygame_handler import GraphicsHandler
-import pygame
-import sys
 
 def main():
     pygame.init()
@@ -27,14 +27,23 @@ def main():
     clock = pygame.time.Clock()
     until_falling = 1000
 
-    gravity = 3
+    gravity = 1
+
+    heldkeys = set()
+
+    c_time = pygame.time.get_ticks()
 
     while running:
+        o_time = c_time
+        clock.tick()
 
-        clock.tick(framerate=20)
+        c_time = pygame.time.get_ticks()
+        delta_t = c_time - o_time
+        print(delta_t)
+        sys.stdout.flush()
 
         # auto falling code
-        until_falling -= gravity
+        until_falling -= gravity * delta_t
         if until_falling < 0:
             until_falling = 1000
             m_board.act('d')
@@ -58,8 +67,10 @@ def main():
 
                 if event.key == pygame.K_DOWN:
                     m_board.act('d')
+                    until_falling = 1000
                 elif event.key == pygame.K_SPACE:
                     m_board.act('hd')
+                    until_falling = 1000
         
         gh.draw_game(m_board)
         pygame.display.update()
