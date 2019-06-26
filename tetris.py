@@ -88,6 +88,7 @@ class Board:
 
         self.score = 0
         self.dead = False
+        self.held_piece = None
 
         self._pickNewNext()
         self._spawnPiece()
@@ -109,12 +110,17 @@ class Board:
 
     # spawns a new piece in (called after _lockPiece or at beginning)
     # also checks validity of spawned piece to see if game is lost
-    def _spawnPiece(self):
-        self.curPiece = Piece(self.nextPiece)
+    def _spawnPiece(self, newpiece=None):
+        self._holdused = False
+        if newpiece == None:
+            self.curPiece = Piece(self.nextPiece)
+            self._pickNewNext()
+        else:
+            self.curPiece = Piece(newpiece)
+
         if not self._pieceValid():
             self.dead = True
             return False
-        self._pickNewNext()
         return True
 
     # clears lines as needed and award points
@@ -135,6 +141,12 @@ class Board:
         for pos in self.curPiece.occupied():
             self._board[pos] = utils.shape_values[self.curPiece.piece_str]
         self._clearLines()
+
+    def _hold_piece(self):
+        newpiece = self.held_piece
+        self.held_piece = self.curPiece.piece_str
+        self._spawnPiece(newpiece=newpiece)
+        self._holdused = True
     
     # public interface; this is how the player will interact
     # action currently should be a string representing what the player
@@ -143,8 +155,14 @@ class Board:
     # valid actions: u, d, l, or r for movement
     # cw or ccw for rotation
     def act(self, action):
-        if action not in ['d', 'l', 'r', 'hd', 'cw', 'ccw']:
+        if action not in ['d', 'l', 'r', 'hd', 'cw', 'ccw', 'hold']:
             return -1
+        
+        if action == 'hold':
+            if self._holdused:
+                return 0
+            self._hold_piece()
+            return 1
         
         ogPiece = None
         if action == 'hd':

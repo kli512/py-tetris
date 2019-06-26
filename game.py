@@ -39,8 +39,6 @@ def main():
 
         c_time = pygame.time.get_ticks()
         delta_t = c_time - o_time
-        print(delta_t)
-        sys.stdout.flush()
 
         # auto falling code
         until_falling -= gravity * delta_t
@@ -71,6 +69,9 @@ def main():
                 elif event.key == pygame.K_SPACE:
                     m_board.act('hd')
                     until_falling = 1000
+
+                if event.key == pygame.K_LSHIFT:
+                    m_board.act('hold')
         
         gh.draw_game(m_board)
         pygame.display.update()
@@ -90,7 +91,7 @@ def main():
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    menuing = False
+                    waiting = False
     
     pygame.display.quit()
     pygame.quit()

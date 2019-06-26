@@ -46,9 +46,7 @@ class GraphicsHandler:
         pygame.draw.rect(self.win, (169, 169, 169), (tlx, tly,
                                                      self.play_width, self.play_height), 5)
 
-    def _draw_next_box(self, piece_str):
-        tlx, tly = self.top_left_x() + self.play_width + 50, self.top_left_y() + 50
-
+    def _draw_piece_box(self, piece_str, tlx, tly):
         shape = utils.shapes[piece_str]
         color = utils.VAL_TO_COLOR[utils.shape_values[piece_str]]
 
@@ -57,6 +55,16 @@ class GraphicsHandler:
                 if shape[i][j] != 0:
                     pygame.draw.rect(self.win, color, (tlx + j * self.block_size,
                                                        tly + i * self.block_size, self.block_size, self.block_size), 0)
+
+    def _draw_next_box(self, piece_str):
+        tlx, tly = self.top_left_x() + self.play_width + 50, self.top_left_y() + 50
+        self._draw_piece_box(piece_str, tlx, tly)
+
+    def _draw_hold_box(self, piece_str):
+        if piece_str == None:
+            return
+        tlx, tly = self.top_left_x() - 150, self.top_left_y() + 50
+        self._draw_piece_box(piece_str, tlx, tly)
 
     def _draw_score(self, score):
         self._draw_text('Score: {}'.format(
@@ -80,6 +88,7 @@ class GraphicsHandler:
         self._draw_grid()
         self._draw_score(board.score)
         self._draw_next_box(board.nextPiece)
+        self._draw_hold_box(board.held_piece)
         # implement more drawings for the game e.g. controls
 
     def draw_main_menu(self):
