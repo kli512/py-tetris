@@ -80,7 +80,7 @@ class GameHandler:
 
     def _draw_next_box(self):
         tlx, tly = self._top_left_x() + self.play_width + 50, self._top_left_y() + 50
-        self._draw_piece_box(self.m_board.nextPiece, tlx, tly)
+        self._draw_piece_box(self.m_board.next_piece, tlx, tly)
 
     def _draw_hold_box(self):
         held = self.m_board.held_piece
@@ -183,7 +183,10 @@ class GameHandler:
                     sys.exit()
 
                 if event.type == pygame.KEYDOWN:
-                    self.m_board.act(self.key_map[event.key])
+                    try:
+                        self.m_board.act(self.key_map[event.key])
+                    except KeyError:
+                        continue # skips this key event
 
                     if event.key in das_keys:
                         for key in das_keys:

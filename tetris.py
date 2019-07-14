@@ -1,11 +1,10 @@
-#!python3
-import numpy as np
 import copy
-import utils
 import random
 from datetime import datetime
-
 import os
+
+import numpy as np
+import utils
 
 class Piece:
 
@@ -13,13 +12,39 @@ class Piece:
     # can be I, J, L, O , S, T, Z pieces
     def __init__(self, piece_str):
         self.piece_str = piece_str
+        self._shape = utils.shapes[piece_str] # the rotation is implicit in _shape
 
-        self._shape = utils.shapes[piece_str] # the rotation is implicit in _shape (the matrix representation rotates)
-        
         # sets the spawning location (compensates for O's small size by moving it forward on column)
         self._pos = [0, 3]
-        if piece_str == 'O': 
+        if piece_str == 'O':
             self._pos[1] += 1
+
+    # rotates the piece (rotates the _shape matrix)
+    # -1 is ccw, 1 is cw
+    def _rotate(self, direc):
+        if direc != -1 and direc != 1:
+            return False
+
+        self._shape = list(map(list, zip(*self._shape[::-1])))
+        if direc == -1:
+            self._shape = list(map(list, zip(*self._shape[::-1])))
+            self._shape = list(map(list, zip(*self._shape[::-1])))
+        return True
+
+    # moves the piece in the desired direction
+    # 'd', 'l', or 'r'
+    def _move(self, direc):
+        if direc == 'u':
+            self._pos[0] -= 1
+        elif direc == 'd':
+            self._pos[0] += 1
+        elif direc == 'l':
+            self._pos[1] -= 1
+        elif direc == 'r':
+            self._pos[1] += 1
+        else:
+            return False
+        return True
 
     # returns the board indicies currently occupied by this piece
     def occupied(self):
@@ -28,35 +53,7 @@ class Piece:
             for c in range(len(self._shape[0])):
                 if self._shape[r][c] != 0:
                     occ.append((r + self._pos[0], c + self._pos[1]))
-        
         return occ
-    
-    # rotates the piece (rotates the _shape matrix)
-    # -1 is ccw, 1 is cw
-    def _rotate(self, dir):
-        if dir != -1 and dir != 1:
-            return False
-
-        self._shape = list(map(list, zip(*self._shape[::-1]))) # possibly dont need to map list cast to tuples from zip
-        if dir == -1:
-            self._shape = list(map(list, zip(*self._shape[::-1])))
-            self._shape = list(map(list, zip(*self._shape[::-1])))
-        return True
-    
-    # moves the piece in the desired direction
-    # 'd', 'l', or 'r'
-    def _move(self, dir):
-        if dir == 'u':
-            self._pos[0] -= 1
-        elif dir == 'd':
-            self._pos[0] += 1
-        elif dir == 'l':
-            self._pos[1] -= 1
-        elif dir == 'r':
-            self._pos[1] += 1
-        else:
-            return False
-        return True
 
     def act(self, action):
         if action == 'cw':
@@ -89,14 +86,16 @@ class Board:
         self.score = 0
         self.dead = False
         self.held_piece = None
+        self._hold_used = False
 
-        self._pickNewNext()
-        self._spawnPiece()
+        self.cur_piece = None
+        self._pick_new_next()
+        self._spawn_piece()
 
     # checks if the current location of the piece is valid
-    #   i.e. doesn't intersect with already placed blocks    
-    def _pieceValid(self):
-        for pos in self.curPiece.occupied():
+    #   i.e. doesn't intersect with already placed blocks
+    def _piece_valid(self):
+        for pos in self.cur_piece.occupied():
             if not (0 <= pos[0] <= 19 and 0 <= pos[1] <= 9):
                 return False
             if self._board[pos] != 0:
@@ -105,26 +104,26 @@ class Board:
 
     # picks a random new piece
     #   modify this if want to switch to bag/other randomizer
-    def _pickNewNext(self):
-        self.nextPiece = random.choice(list(utils.shapes))
+    def _pick_new_next(self):
+        self.next_piece = random.choice(list(utils.shapes))
 
-    # spawns a new piece in (called after _lockPiece or at beginning)
+    # spawns a new piece in (called after _lock_piece or at beginning)
     # also checks validity of spawned piece to see if game is lost
-    def _spawnPiece(self, newpiece=None):
-        self._holdused = False
-        if newpiece == None:
-            self.curPiece = Piece(self.nextPiece)
-            self._pickNewNext()
+    def _spawn_piece(self, newpiece=None):
+        self._hold_used = False
+        if newpiece is None:
+            self.cur_piece = Piece(self.next_piece)
+            self._pick_new_next()
         else:
-            self.curPiece = Piece(newpiece)
+            self.cur_piece = Piece(newpiece)
 
-        if not self._pieceValid():
+        if not self._piece_valid():
             self.dead = True
             return False
         return True
 
     # clears lines as needed and award points
-    def _clearLines(self):
+    def _clear_lines(self):
         lcleared = 0
         for r_ind in range(len(self._board)):
             if all(val != 0 for val in self._board[r_ind]):
@@ -136,18 +135,18 @@ class Board:
 
         return lcleared
 
-    # locks _curPiece in place and spawns a new one
-    def _lockPiece(self):
-        for pos in self.curPiece.occupied():
-            self._board[pos] = utils.shape_values[self.curPiece.piece_str]
-        self._clearLines()
+    # locks _cur_piece in place and spawns a new one
+    def _lock_piece(self):
+        for pos in self.cur_piece.occupied():
+            self._board[pos] = utils.shape_values[self.cur_piece.piece_str]
+        self._clear_lines()
 
     def _hold_piece(self):
         newpiece = self.held_piece
-        self.held_piece = self.curPiece.piece_str
-        self._spawnPiece(newpiece=newpiece)
-        self._holdused = True
-    
+        self.held_piece = self.cur_piece.piece_str
+        self._spawn_piece(newpiece=newpiece)
+        self._hold_used = True
+
     # public interface; this is how the player will interact
     # action currently should be a string representing what the player
     # chose to do
@@ -157,44 +156,44 @@ class Board:
     def act(self, action):
         if action not in ['d', 'l', 'r', 'hd', 'cw', 'ccw', 'hold']:
             return -1
-        
+
         if action == 'hold':
-            if self._holdused:
+            if self._hold_used:
                 return 0
             self._hold_piece()
             return 1
-        
-        ogPiece = None
-        if action == 'hd':
-            while self._pieceValid():
-                self.curPiece.act('d')
-            self.curPiece.act('u')
-            ogPiece = copy.deepcopy(self.curPiece)
-            self.curPiece.act('d')
-        else:
-            ogPiece = copy.deepcopy(self.curPiece)
-            self.curPiece.act(action)
 
-        if not self._pieceValid():
-            self.curPiece = ogPiece
+        og_piece = None
+        if action == 'hd':
+            while self._piece_valid():
+                self.cur_piece.act('d')
+            self.cur_piece.act('u')
+            og_piece = copy.deepcopy(self.cur_piece)
+            self.cur_piece.act('d')
+        else:
+            og_piece = copy.deepcopy(self.cur_piece)
+            self.cur_piece.act(action)
+
+        if not self._piece_valid():
+            self.cur_piece = og_piece
             if action == 'd' or action == 'hd':
-                self._lockPiece()
-                self._spawnPiece()
+                self._lock_piece()
+                self._spawn_piece()
             else:
                 return 0
         return 1
 
     def state(self):
         bstate = copy.deepcopy(self._board)
-        for pos in self.curPiece.occupied():
-            bstate[pos] = utils.shape_values[self.curPiece.piece_str]
-        
+        for pos in self.cur_piece.occupied():
+            bstate[pos] = utils.shape_values[self.cur_piece.piece_str]
+
         return bstate
 
     def __str__(self):
         temp = copy.deepcopy(self._board)
-        for pos in self.curPiece.occupied():
-            temp[pos] = utils.shape_values[self.curPiece.piece_str]
+        for pos in self.cur_piece.occupied():
+            temp[pos] = utils.shape_values[self.cur_piece.piece_str]
 
         out = np.array_str(temp)
         out = out.replace('0', ' ')
