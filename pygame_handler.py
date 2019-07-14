@@ -1,3 +1,4 @@
+from collections import defaultdict
 import sys
 import pygame
 from tetris import Board
@@ -123,6 +124,13 @@ class GameHandler:
         self._draw_text_middle(
             'You Lost\nYour Score was {}'.format(self.m_board.score), bold=True)
 
+    def _get_das_keys(self):
+        keys = []
+        for key, command in self.key_map.items():
+            if command == 'l' or command == 'r':
+                keys.append(key)
+        return keys
+
     def _menu_loop(self):
         self._draw_main_menu()
         menuing = True
@@ -144,6 +152,14 @@ class GameHandler:
         until_falling = 1000
 
         gravity = 1
+
+        das = 100
+        arr = 1
+
+        held_time = defaultdict()
+        arr_charge = defaultdict()
+
+        das_keys = self._get_das_keys()
 
         c_time = pygame.time.get_ticks()
 
@@ -169,12 +185,29 @@ class GameHandler:
                 if event.type == pygame.KEYDOWN:
                     self.m_board.act(self.key_map[event.key])
 
+                    if event.key in das_keys:
+                        for key in das_keys:
+                            held_time[key] = -delta_t
+                            arr_charge[key] = -delta_t
+
+            keys = pygame.key.get_pressed()
+
+            for key in das_keys:
+                if keys[key]:
+                    held_time[key] += delta_t
+
+                    if held_time[key] > das:
+                        arr_charge[key] += delta_t
+                        while arr_charge[key] > arr:
+                            arr_charge[key] -= arr
+                            self.m_board.act(self.key_map[key])
+
             self._draw_game()
             pygame.display.update()
 
             if self.m_board.dead:
                 running = False
-    
+
     def _end_loop(self):
         self._draw_lose()
         pygame.display.update()
@@ -189,7 +222,7 @@ class GameHandler:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         waiting = False
-        
+
         pygame.display.quit()
         pygame.quit()
         sys.exit()
