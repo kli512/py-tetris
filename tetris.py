@@ -148,8 +148,15 @@ class Board:
         self._hold_used = True
 
     # public interface; this is how the player will interact
-    # action currently should be a string representing what the player
-    # chose to do
+
+    def should_lock(self):
+        og_piece = copy.deepcopy(self.cur_piece)
+        self.cur_piece.act('d')
+
+        res = not self._piece_valid()
+        self.cur_piece = og_piece
+
+        return res
 
     # valid actions: u, d, l, or r for movement
     # cw or ccw for rotation

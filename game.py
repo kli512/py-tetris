@@ -1,10 +1,7 @@
-import pygame
-from tetris import Board
 from pygame_handler import GameHandler
 
 def main():
-    pygame.init()
-    gh = GameHandler(Board())
+    gh = GameHandler()
 
     gh.play_game()
 

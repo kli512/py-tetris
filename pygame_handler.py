@@ -4,12 +4,11 @@ import pygame
 from tetris import Board
 import utils
 
-
 class GameHandler:
-    def __init__(self, board):
+    def __init__(self):
         pygame.display.set_caption('Teetris')
 
-        self.m_board = board
+        self.m_board = None
 
         self.key_map = {
             pygame.K_LEFT: 'l',
@@ -146,10 +145,11 @@ class GameHandler:
                     menuing = False
 
     def _game_loop(self):
+        self.m_board = Board()
+
         running = True
 
         clock = pygame.time.Clock()
-        until_falling = 1000
 
         gravity = 1
 
@@ -162,6 +162,9 @@ class GameHandler:
         das_keys = self._get_das_keys()
 
         c_time = pygame.time.get_ticks()
+        
+        until_falling = 1000
+        lock_delay = 500
 
         while running:
             o_time = c_time
@@ -172,9 +175,17 @@ class GameHandler:
 
             # auto falling code
             until_falling -= gravity * delta_t
-            if until_falling < 0:
-                until_falling = 1000
-                self.m_board.act('d')
+            if until_falling <= 0:
+                if self.m_board.should_lock():
+                    if lock_delay <= 0:
+                        until_falling = 1000
+                        self.m_board.act('d')
+
+                    lock_delay -= delta_t
+                else:
+                    # lock_delay = 500 # SEGA rotation lock delay
+                    until_falling = 1000
+                    self.m_board.act('d')
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -184,7 +195,8 @@ class GameHandler:
 
                 if event.type == pygame.KEYDOWN:
                     try:
-                        self.m_board.act(self.key_map[event.key])
+                        if self.m_board.act(self.key_map[event.key]) == 1:
+                            lock_delay = 500 # Infinity lock delay
                     except KeyError:
                         continue # skips this key event
 
