@@ -1,12 +1,16 @@
 from collections import defaultdict
 import sys
+from time import strftime
 import pygame
 from tetris import Board
 import utils
 
+
 class GameHandler:
     def __init__(self):
         pygame.display.set_caption('Teetris')
+
+        self._modes = ['40L Sprint', 'Ultra']
 
         self.m_board = None
 
@@ -28,11 +32,21 @@ class GameHandler:
 
         self.win = pygame.display.set_mode((self.win_width, self.win_height))
 
+    # generic functions
+
+    def quit_game(self):
+        pygame.display.quit()
+        pygame.quit()
+        sys.exit()
+
     def _top_left_x(self):
         return (self.win_width - self.play_width) / 2
 
     def _top_left_y(self):
         return (self.win_height - self.play_height) / 2
+
+    def _clear_board(self):
+        self.win.fill((0, 0, 0))
 
     def _draw_text(self, text, pos, align=(-1, -1), size=40, color=(255, 255, 255), bold=False):
         font = pygame.font.SysFont('arial', size, bold=bold)
@@ -43,13 +57,65 @@ class GameHandler:
             textpos[0] -= label.get_width() / 2
         elif align[0] == 1:
             textpos[0] -= label.get_width()
-        
+
         if align[1] == 0:
             textpos[1] -= label.get_height() / 2
         elif align[1] == 1:
             textpos[1] -= label.get_height()
 
         self.win.blit(label, textpos)
+
+    # menuing functions
+
+    def _draw_selector(self, pos, size):
+        points = (pos, (pos[0], pos[1] + size),
+                  (pos[0] + size * (2 ** 0.5), pos[1] + size / 2))
+        pygame.draw.polygon(self.win, (255, 255, 255), points)
+
+    def _draw_main_menu(self, options, selected):
+        self._clear_board()
+
+        pos = [15, 10]
+        self._draw_text('Modes', pos, size=30, bold=True)
+        pos[0] += 50
+        pos[1] += 50
+        for o_i, option in enumerate(options):
+            self._draw_text(' - ' + option, pos, size=20)
+            if o_i == selected:
+                self._draw_selector((pos[0] - 40, pos[1]), size=20)
+
+            pos[1] += 30
+
+        self._draw_text('Teetris', (self.win_width - 15,
+                                    self.win_height - 10), align=(1, 1), bold=True)
+        self._draw_text('Press any key', (self.win_width / 2,
+                                          self.win_height / 2), (0, 0), bold=True)
+        pygame.display.update()
+
+    def _menu_loop(self):
+        options = ['40L Sprint', 'Ultra', 'Exit']
+        selected = 0
+        menuing = True
+
+        while menuing:
+            self._draw_main_menu(options, selected)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.quit_game()
+
+                og_selection = selected
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_DOWN:
+                        selected += 1
+                    elif event.key == pygame.K_UP:
+                        selected -= 1
+                    elif event.key == pygame.K_RETURN:
+                        return selected
+
+                if selected not in range(len(options)):
+                    selected = og_selection
+
+    # gameplay functions
 
     def _draw_board(self):
         tlx, tly = self._top_left_x(), self._top_left_y()
@@ -69,7 +135,7 @@ class GameHandler:
                 s.fill(
                     utils.VAL_TO_COLOR[utils.shape_values[self.m_board.cur_piece.piece_str]])
                 self.win.blit(s, (tlx + pos[1] * self.block_size,
-                            tly + (pos[0] - 6) * self.block_size))
+                                  tly + (pos[0] - 6) * self.block_size))
 
         pygame.draw.rect(self.win, (169, 169, 169), (tlx, tly,
                                                      self.play_width, self.play_height), 5)
@@ -87,7 +153,8 @@ class GameHandler:
     def _draw_next_boxs(self):
         tlx, tly = self._top_left_x() + self.play_width + 50, self._top_left_y() + 50
         for i in range(5):
-            self._draw_piece_box(self.m_board.next_pieces[i], tlx, tly + i * self.block_size * 3)
+            self._draw_piece_box(
+                self.m_board.next_pieces[i], tlx, tly + i * self.block_size * 3)
 
     def _draw_hold_box(self):
         held = self.m_board.held_piece
@@ -97,14 +164,17 @@ class GameHandler:
         self._draw_piece_box(held, tlx, tly)
 
     def _draw_lines_cleared(self):
-        self._draw_text('Lines: {}'.format(self.m_board.lines_cleared), (self._top_left_x() + self.play_width/2, self._top_left_y()), (0, 1))
+        self._draw_text('Lines: {}'.format(self.m_board.lines_cleared),
+                        (self._top_left_x() + self.play_width/2, self._top_left_y()), (0, 1))
 
     def _draw_score(self):
         self._draw_text('Score: {}'.format(
             self.m_board.score), (self._top_left_x(), self._top_left_y() + self.play_height))
 
-    def _clear_board(self):
-        self.win.fill((0, 0, 0))
+    def _draw_time(self):
+        time = (pygame.time.get_ticks() - self.start_time) / 1000
+        self._draw_text('Time: {:.2f}'.format(time),
+                        (self._top_left_x() - 200, self._top_left_y() + self.play_height - 80), size=30)
 
     def _draw_grid(self):
         tlx, tly = self._top_left_x(), self._top_left_y()
@@ -120,19 +190,11 @@ class GameHandler:
         self._draw_board()
         self._draw_grid()
         self._draw_score()
+        self._draw_time()
         self._draw_lines_cleared()
         self._draw_next_boxs()
         self._draw_hold_box()
         # implement more drawings for the game e.g. controls
-
-    def _draw_main_menu(self):
-        self._clear_board()
-        self._draw_text('Press any key', (self.win_width / 2, self.win_height / 2), (0,0), bold=True)
-        pygame.display.update()
-
-    def _draw_lose(self):
-        self._clear_board()
-        self._draw_text('Your Score was {}'.format(self.m_board.score), (self.win_width / 2, self.win_height / 2), (0,0), bold=True)
 
     def _get_das_keys(self):
         keys = []
@@ -141,21 +203,26 @@ class GameHandler:
                 keys.append(key)
         return keys
 
-    def _menu_loop(self):
-        self._draw_main_menu()
-        menuing = True
+    def _sprint_finished(self):
+        if self.m_board.lines_cleared >= 40:
+            return True
+        return False
 
-        while menuing:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.display.quit()
-                    pygame.quit()
-                    sys.exit()
+    def _ultra_finished(self):
+        if pygame.time.get_ticks() - self.start_time > 120 * 1000:
+            return True
+        return False
 
-                if event.type == pygame.KEYDOWN:
-                    menuing = False
+    def _game_loop(self, mode):
 
-    def _game_loop(self):
+        finished = None
+        if mode == 0:
+            finished = self._sprint_finished
+        elif mode == 1:
+            finished = self._ultra_finished
+        else:
+            finished = lambda: False
+
         self.m_board = Board()
 
         running = True
@@ -175,10 +242,15 @@ class GameHandler:
 
         c_time = pygame.time.get_ticks()
 
+        self.start_time = c_time
+
         until_falling = 1000
         lock_delay = 500
 
         while running:
+            if finished():
+                return True
+
             o_time = c_time
             clock.tick()
 
@@ -200,9 +272,7 @@ class GameHandler:
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    pygame.display.quit()
-                    pygame.quit()
-                    sys.exit()
+                    self.quit_game()
 
                 if event.type == pygame.KEYDOWN:
                     try:
@@ -243,10 +313,19 @@ class GameHandler:
             pygame.display.update()
 
             if self.m_board.dead:
-                running = False
+                return False
 
-    def _end_loop(self):
-        self._draw_lose()
+    # postgame functions
+
+    def _draw_lose(self):
+        self._clear_board()
+        self._draw_text('Your Score was {}'.format(self.m_board.score),
+                        (self.win_width / 2, self.win_height / 2), (0, 0), bold=True)
+
+    def _end_loop(self, mode, survived):
+        # self._draw_lose()
+        self._draw_text('Finished', (self.win_width,
+                                     self.win_height), align=(1, 1), bold=True)
         pygame.display.update()
 
         waiting = True
@@ -260,12 +339,12 @@ class GameHandler:
                     if event.key == pygame.K_ESCAPE:
                         waiting = False
 
-        pygame.display.quit()
-        pygame.quit()
-        sys.exit()
+        self.quit_game()
 
     def play_game(self):
         pygame.init()
-        self._menu_loop()
-        self._game_loop()
-        self._end_loop()
+        mode = self._menu_loop()
+        if mode == 2:
+            self.quit_game()
+        survived = self._game_loop(mode)
+        self._end_loop(mode, survived)

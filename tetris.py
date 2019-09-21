@@ -8,6 +8,7 @@ import sys
 import numpy as np
 import utils
 
+
 class Piece:
     # called with the piece_str e.g. 'S' representing which piece
     # can be I, J, L, O , S, T, Z pieces
@@ -68,6 +69,7 @@ class Piece:
             return True
         return False
 
+
 class Board:
     # sets the board state and seeds the random generator
     def __init__(self, board=None, rseed=None):
@@ -79,7 +81,8 @@ class Board:
         self.width = 10
 
         if board is None:
-            self._board = np.array([[0 for i in range(self.width)] for i in range(self.height)])
+            self._board = np.array([[0 for i in range(self.width)]
+                                    for i in range(self.height)])
         else:
             self._board = np.array(board)
 
@@ -93,6 +96,7 @@ class Board:
         self.dead = False
         self.held_piece = None
         self._hold_used = False
+        self._tspin = False
 
         self.cur_piece = None
         self.next_pieces = deque()
@@ -148,15 +152,42 @@ class Board:
         self.ghost_piece_occupied = self.cur_piece.occupied()
         self.cur_piece = og_piece
 
+    def _tspun(self):
+        corners = [(0,0), (0, 2), (2, 0), (2, 2)]
+        filled_corners = 0
+
+        print('pos {}'.format(self.cur_piece.pos))
+
+        for corner in corners:
+            tocheck = tuple(utils.vector_add(corner, self.cur_piece.pos))
+            if tocheck[0] >= self.height or tocheck[1] not in range(self.width):
+                print('oob at {}'.format(tocheck))
+                filled_corners += 1
+            else:
+                if self._board[tocheck] != 0:
+                    filled_corners += 1
+                    print('filled at {}'.format(tocheck))
+
+        if filled_corners >= 3:
+            return True
+        return False
+
     # clears lines as needed and award points
     def _clear_lines(self):
+        mult = 1
+        if self._tspin:
+            mult = 2
+
+        print('clearing with mult {}'.format(mult))
+        sys.stdout.flush()
+
         lcleared = 0
         for r_ind in range(self.height):
             if all(val != 0 for val in self._board[r_ind]):
                 for l_ind in reversed(range(1, r_ind + 1)):
                     self._board[l_ind] = self._board[l_ind - 1]
                 self._board[0] = 0
-                self.score += 1000 * (lcleared + 1)
+                self.score += mult * 1000 * (lcleared + 1)
                 lcleared += 1
 
         self.lines_cleared += lcleared
@@ -203,12 +234,27 @@ class Board:
 
         if not self._piece_valid():
             if action in ('cw', 'ccw'):
-                rotations = utils.SRS_TABLE.get_rotation(og_piece.piece_str, og_piece.rotation, utils.ROTATION_TO_VAL[action])
-                for srs in rotations:
+
+                rotations = utils.SRS_TABLE.get_rotation(
+                    og_piece.piece_str, og_piece.rotation, utils.ROTATION_TO_VAL[action])
+
+                for srs_i, srs in enumerate(rotations):
+
                     old_pos = self.cur_piece.pos
-                    self.cur_piece.pos = list(utils.vector_add(self.cur_piece.pos, srs))
+                    self.cur_piece.pos = list(
+                        utils.vector_add(self.cur_piece.pos, srs))
+
                     if self._piece_valid():
                         self._generate_ghost_piece()
+
+                        if self.cur_piece.piece_str == 'T':
+                            if srs_i > 0 or self._tspun():
+                                self._tspin = True
+                            else:
+                                self._tspin = False
+                        else:
+                            self._tspin = False
+
                         return 1
                     else:
                         self.cur_piece.pos = old_pos
@@ -240,8 +286,10 @@ class Board:
 
 # testing to check functionality of board
 
+
 def clear():
     os.system('cls||clear')
+
 
 def main():
     b = Board()
@@ -262,6 +310,7 @@ def main():
 
         if b.dead:
             break
+
 
 if __name__ == "__main__":
     main()
