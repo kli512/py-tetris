@@ -11,6 +11,7 @@ class GameHandler:
         pygame.display.set_caption('Teetris')
 
         self._modes = ['40L Sprint', 'Ultra']
+        self._mode = None
 
         self.m_board = None
 
@@ -110,6 +111,7 @@ class GameHandler:
                     elif event.key == pygame.K_UP:
                         selected -= 1
                     elif event.key == pygame.K_RETURN:
+                        self._mode = selected
                         return selected
 
                 if selected not in range(len(options)):
@@ -141,13 +143,10 @@ class GameHandler:
                                                      self.play_width, self.play_height), 5)
 
     def _draw_piece_box(self, piece_str, tlx, tly):
-        shape = utils.LETTER_TO_SHAPE[piece_str]
         color = utils.VAL_TO_COLOR[utils.shape_values[piece_str]]
 
-        for i in range(len(shape)):
-            for j in range(len(shape)):
-                if shape[i][j] != 0:
-                    pygame.draw.rect(self.win, color, (tlx + j * self.block_size,
+        for i, j in utils.OCCUPIED[piece_str][0]:
+            pygame.draw.rect(self.win, color, (tlx + j * self.block_size,
                                                        tly + i * self.block_size, self.block_size, self.block_size))
 
     def _draw_next_boxs(self):
@@ -213,12 +212,12 @@ class GameHandler:
             return True
         return False
 
-    def _game_loop(self, mode):
+    def _game_loop(self):
 
         finished = None
-        if mode == 0:
+        if self._mode == 0:
             finished = self._sprint_finished
-        elif mode == 1:
+        elif self._mode == 1:
             finished = self._ultra_finished
         else:
             finished = lambda: False
@@ -231,7 +230,7 @@ class GameHandler:
 
         gravity = 1
 
-        das = 100
+        das = 80
         arr = 1
         soft_drop_rate = 1
 
@@ -249,7 +248,7 @@ class GameHandler:
 
         while running:
             if finished():
-                return True
+                return 1
 
             o_time = c_time
             clock.tick()
@@ -260,7 +259,7 @@ class GameHandler:
             # auto falling code
             until_falling -= gravity * delta_t
             if until_falling <= 0:
-                if self.m_board.act('d') == 0:
+                if self.m_board.act('d') == False:
                     if lock_delay <= 0:
                         self.m_board.lock_piece()
                         until_falling = 1000
@@ -281,6 +280,10 @@ class GameHandler:
                                 until_falling = 1000
                             lock_delay = 500  # Infinity lock delay
                     except KeyError:
+                        if event.key == pygame.K_ESCAPE:
+                            return -1
+                        elif event.key == pygame.K_F4:
+                            return 0
                         continue  # skips this key event
 
                     if event.key in das_keys:
@@ -313,7 +316,7 @@ class GameHandler:
             pygame.display.update()
 
             if self.m_board.dead:
-                return False
+                return 1
 
     # postgame functions
 
@@ -322,7 +325,7 @@ class GameHandler:
         self._draw_text('Your Score was {}'.format(self.m_board.score),
                         (self.win_width / 2, self.win_height / 2), (0, 0), bold=True)
 
-    def _end_loop(self, mode, survived):
+    def _end_loop(self):
         # self._draw_lose()
         self._draw_text('Finished', (self.win_width,
                                      self.win_height), align=(1, 1), bold=True)
@@ -343,8 +346,13 @@ class GameHandler:
 
     def play_game(self):
         pygame.init()
-        mode = self._menu_loop()
-        if mode == 2:
-            self.quit_game()
-        survived = self._game_loop(mode)
-        self._end_loop(mode, survived)
+
+        game_res = -1
+        while game_res == -1:
+            if self._menu_loop() == 2:
+                self.quit_game()
+            game_res = 0
+            while game_res == 0:
+                game_res = self._game_loop()
+
+        self._end_loop()

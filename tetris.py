@@ -10,71 +10,101 @@ import utils
 
 
 class Piece:
+    rotation_table = {'cw': 1, 'ccw': -1}
+
     # called with the piece_str e.g. 'S' representing which piece
     # can be I, J, L, O , S, T, Z pieces
-    def __init__(self, piece_str, r=5):
-        self.piece_str = piece_str
-        self._shape = utils.LETTER_TO_SHAPE[piece_str]
-        self.rotation = 0
+    def __init__(self, piece_str, parent_game):
+        """Tetromino class, used to represent a live piece
 
-        # sets the spawning location (compensates for O's small size by moving it forward on column)
-        self.pos = [r, 3]
-        if piece_str == 'O':
-            self.pos[1] += 1
+        Parameters
+        ----------
+        piece_str : str
+            Letter used to name the piece (I, O, T, J, L, S, Z)
+        parent_game : Board
+            Parent game this piece belongs to, used to check if Piece is valid
+
+        Attributes
+        ----------
+        piece_str : str
+            Letter used to name the piece (I, O, T, J, L, S, Z)
+        rotation : int
+            Rotational value (0 pointing up, 1 to the right, etc)
+        last_move : str
+            Record of the last valid move the piece made
+        """
+        self.piece_str = piece_str
+        self._parent_game = parent_game
+        self.rotation = 0
+        self.last_move = None
+
+        # sets the spawning location (compensates for O's shape by moving it forward one column)
+        self.pos = [6, 4 if piece_str == 'O' else 3]
 
     # rotates the piece (rotates the _shape matrix)
-    # utils.CLOCKWISE and utils.COUNTERCLOCKWISE define rotation
     def _rotate(self, direc):
-        if direc not in (utils.CLOCKWISE, utils.COUNTERCLOCKWISE):
-            return False
-
         self.rotation = (self.rotation + direc) % 4
-
-        self._shape = list(map(list, zip(*self._shape[::-1])))
-        if direc == utils.COUNTERCLOCKWISE:
-            self._shape = list(map(list, zip(*self._shape[::-1])))
-            self._shape = list(map(list, zip(*self._shape[::-1])))
+        if not self._parent_game._piece_valid():
+            self.rotation = (self.rotation - direc) % 4
+            return False
         return True
 
     # moves the piece in the desired direction
     # 'd', 'l', or 'r'
-    def _move(self, direc):
-        if direc == 'u':
-            self.pos[0] -= 1
-        elif direc == 'd':
-            self.pos[0] += 1
-        elif direc == 'l':
-            self.pos[1] -= 1
-        elif direc == 'r':
-            self.pos[1] += 1
-        else:
+    def _move(self, direc: str) -> bool:
+        index = 0 if direc in ('u', 'd') else 1
+        amt = 1 if direc in ('d', 'r') else -1
+
+        self.pos[index] += amt
+
+        if not self._parent_game._piece_valid():
+            self.pos[index] -= amt
             return False
         return True
 
     # returns the board indicies currently occupied by this piece
     def occupied(self):
-        occ = []
-        for r in range(len(self._shape)):
-            for c in range(len(self._shape[0])):
-                if self._shape[r][c] != 0:
-                    occ.append((r + self.pos[0], c + self.pos[1]))
-        return occ
+        for spot in utils.OCCUPIED[self.piece_str][self.rotation]:
+            yield tuple(map(sum, zip(self.pos, spot)))
 
-    def act(self, action):
-        if action in ('cw', 'ccw'):
-            self._rotate(utils.ROTATION_TO_VAL[action])
-            return True
-        elif action == 'u' or action == 'd' or action == 'l' or action == 'r':
-            self._move(action)
-            return True
+    def act(self, action: str) -> bool:
+        """Interface for Piece class - manipulates the piece as given
+
+        Parameters
+        ----------
+        action : str
+            Name of the action being performed - u, d, l, r, cw, or ccw
+
+        Returns
+        -------
+        bool
+            Whether or not the action succeeded
+        """
+        if action in utils.ROTATIONS:
+            if self._rotate(self.rotation_table[action]):
+                self.last_move = action
+                return True
+        elif action in utils.MOVEMENT:
+            if self._move(action):
+                self.last_move = action
+                return True
+        else:
+            raise ValueError('Invalid move \'{}\''.format(action))
+
         return False
 
 
 class Board:
-    # sets the board state and seeds the random generator
     def __init__(self, board=None, rseed=None):
-        # initializes the physical board with 0's, representing empty in all spaces
-        # if a prefilled board state is desired, it can be given
+        """Main board class, built on top of numpy array
+
+        Parameters
+        ----------
+        board : numpy.array, optional
+            Board state, by default None which generates an empty board
+        rseed : Any, optional
+            Seed used by random.seed() for rng, by default None
+        """
 
         self.height = 26
         self.playable_height = 20
@@ -96,7 +126,6 @@ class Board:
         self.dead = False
         self.held_piece = None
         self._hold_used = False
-        self._tspin = False
 
         self.cur_piece = None
         self.next_pieces = deque()
@@ -105,15 +134,15 @@ class Board:
         self.ghost_piece_occupied = None
         self._generate_ghost_piece()
 
+    def _out_of_bounds(self, pos):
+        if not 0 <= pos[0] < self.height or not 0 <= pos[1] < self.width:
+            return True
+        return False
+
     # checks if the current location of the piece is valid
-    #   i.e. doesn't intersect with already placed blocks
+    #   i.e. doesn't intersect with already placed blocks / out of bounds
     def _piece_valid(self):
-        for pos in self.cur_piece.occupied():
-            if pos[0] >= self.height or pos[1] not in range(self.width):
-                return False
-            if self._board[pos] != 0:
-                return False
-        return True
+        return not any(self._out_of_bounds(pos) or self._board[pos] != 0 for pos in self.cur_piece.occupied())
 
     # picks a random new piece
     #   modify this if want to switch to bag/other randomizer
@@ -122,64 +151,51 @@ class Board:
 
     # spawns a new piece in
     # also checks validity of spawned piece to see if game is lost
-    def _spawn_piece(self, newpiece=None):
+    def _spawn_piece(self):
         self._hold_used = False
-        if newpiece is None:
-            self.cur_piece = Piece(self.next_pieces.popleft())
-            if len(self.next_pieces) < 7:
-                self._pick_new_next()
-        else:
-            self.cur_piece = Piece(newpiece)
+        self.cur_piece = Piece(self.next_pieces.popleft(), self)
+        if len(self.next_pieces) < 7:
+            self._pick_new_next()
         self._generate_ghost_piece()
 
         if not self._piece_valid():
             self.dead = True
-            return False
-        return True
 
-    def _hold_piece(self):
-        newpiece = self.held_piece
+    def _hold(self):
+        if self.held_piece is not None:
+            self.next_pieces.appendleft(self.held_piece)
         self.held_piece = self.cur_piece.piece_str
-        self._spawn_piece(newpiece=newpiece)
+        self._spawn_piece()
         self._hold_used = True
 
     def _generate_ghost_piece(self):
         og_piece = copy.deepcopy(self.cur_piece)
-        while self._piece_valid():
-            self.cur_piece.act('d')
-        self.cur_piece.act('u')
+        while self.cur_piece.act('d'):
+            pass
 
-        self.ghost_piece_occupied = self.cur_piece.occupied()
+        self.ghost_piece_occupied = tuple(self.cur_piece.occupied())
         self.cur_piece = og_piece
 
     def _tspun(self):
-        corners = [(0,0), (0, 2), (2, 0), (2, 2)]
+        if self.cur_piece.piece_str != 'T' or self.cur_piece.last_move not in utils.ROTATIONS:
+            return False
+
+        corners = [(0, 0), (0, 2), (2, 0), (2, 2)]
         filled_corners = 0
 
-        print('pos {}'.format(self.cur_piece.pos))
+        #print('pos {}'.format(self.cur_piece.pos))
 
         for corner in corners:
-            tocheck = tuple(utils.vector_add(corner, self.cur_piece.pos))
-            if tocheck[0] >= self.height or tocheck[1] not in range(self.width):
-                print('oob at {}'.format(tocheck))
+            tocheck = tuple(map(sum, zip(corner, self.cur_piece.pos)))
+            if self._out_of_bounds(tocheck) or self._board[tocheck] != 0:
                 filled_corners += 1
-            else:
-                if self._board[tocheck] != 0:
-                    filled_corners += 1
-                    print('filled at {}'.format(tocheck))
 
         if filled_corners >= 3:
             return True
         return False
 
     # clears lines as needed and award points
-    def _clear_lines(self):
-        mult = 1
-        if self._tspin:
-            mult = 2
-
-        print('clearing with mult {}'.format(mult))
-        sys.stdout.flush()
+    def _clear_lines(self, mult):
 
         lcleared = 0
         for r_ind in range(self.height):
@@ -204,7 +220,10 @@ class Board:
                 safe = True
         if not safe:
             self.dead = True
-        self._clear_lines()
+
+        mult = 2 if self._tspun() else 1
+        # if mult == 2: print ("tspin")
+        self._clear_lines(mult)
         self._spawn_piece()
 
     # valid actions: u, d, l, or r for movement
@@ -213,72 +232,49 @@ class Board:
     #           0 for failed action (e.g. piece became invalid)
     #           1 for successful action
     def act(self, action):
-        if action not in ['d', 'l', 'r', 'hd', 'cw', 'ccw', 'hold']:
-            return -1
-
         if action == 'hold':
             if self._hold_used:
-                return 0
-            self._hold_piece()
-            return 1
-
-        if action == 'hd':
-            while self._piece_valid():
-                self.cur_piece.act('d')
-            self.cur_piece.act('u')
+                return False
+            self._hold()
+        elif action == 'hd':
+            while self.cur_piece.act('d'):
+                pass
             self.lock_piece()
-            return 1
+        elif action in utils.MOVEMENT:
+            if not self.cur_piece.act(action):
+                return False
+        elif action in utils.ROTATIONS:
+            offsets = utils.SRS_TABLE.get_rotation(
+                self.cur_piece.piece_str, self.cur_piece.rotation, utils.ROTATION_TO_VAL[action])
 
-        og_piece = copy.deepcopy(self.cur_piece)
-        self.cur_piece.act(action)
+            for offset in offsets:
+                old_pos = self.cur_piece.pos
+                self.cur_piece.pos = list(
+                    utils.vector_add(self.cur_piece.pos, offset))
 
-        if not self._piece_valid():
-            if action in ('cw', 'ccw'):
-
-                rotations = utils.SRS_TABLE.get_rotation(
-                    og_piece.piece_str, og_piece.rotation, utils.ROTATION_TO_VAL[action])
-
-                for srs_i, srs in enumerate(rotations):
-
-                    old_pos = self.cur_piece.pos
-                    self.cur_piece.pos = list(
-                        utils.vector_add(self.cur_piece.pos, srs))
-
-                    if self._piece_valid():
-                        self._generate_ghost_piece()
-
-                        if self.cur_piece.piece_str == 'T':
-                            if srs_i > 0 or self._tspun():
-                                self._tspin = True
-                            else:
-                                self._tspin = False
-                        else:
-                            self._tspin = False
-
-                        return 1
-                    else:
-                        self.cur_piece.pos = old_pos
-
-            self.cur_piece = og_piece
-            return 0
+                if self.cur_piece.act(action):
+                    break
+                self.cur_piece.pos = old_pos
+            else:
+                return False
+        else:
+            raise ValueError('Invalid move \'{}\''.format(action))
 
         if action != 'd':
             self._generate_ghost_piece()
 
-        return 1
+        return True
 
     def state(self):
         bstate = copy.deepcopy(self._board)
         for pos in self.cur_piece.occupied():
             bstate[pos] = utils.shape_values[self.cur_piece.piece_str]
-
         return bstate
 
     def __str__(self):
         temp = copy.deepcopy(self._board)
         for pos in self.cur_piece.occupied():
             temp[pos] = utils.shape_values[self.cur_piece.piece_str]
-
         out = np.array_str(temp)
         out = out.replace('0', ' ')
 
@@ -298,15 +294,15 @@ def main():
     move = None
     while True:
         print(b)
-        if res == -1:
-            print("Invalid action sequence '{}'".format(move))
-        elif res == 0:
-            print("Invalid piece movement '{}'".format(move))
-
         print('Score: {}'.format(b.score))
-        print('Enter move (l, d, r, hd, cw, ccw): ', end='')
-        move = input()
-        res = b.act(move)
+        while True:
+            print('Enter move (l, d, r, hd, cw, ccw, hold): ', end='')
+            move = input()
+            try:
+                b.act(move)
+                break
+            except ValueError as e:
+                print(e)
 
         if b.dead:
             break

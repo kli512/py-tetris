@@ -1,18 +1,38 @@
+from copy import deepcopy
+
 CLOCKWISE = 1
 COUNTERCLOCKWISE = -1
 
-def vector_add(v_1, v_2):
-    for i in range(len(v_1)):
-        yield v_1[i] + v_2[i]
+ACTIONS = {
+    'cw': 0,
+    'ccw': 1,
+    'u': 2,
+    'd': 3,
+    'l': 4,
+    'r': 5,
+    'd': 6,
+    'hd': 7,
+}
+
+ROTATIONS = dict((key, val)
+                 for key, val in ACTIONS.items() if key in ('cw', 'ccw'))
+
+MOVEMENT = dict((key, val)
+                for key, val in ACTIONS.items() if key in ('u', 'd', 'l', 'r'))
 
 ROTATION_TO_VAL = {
     'cw': 1,
     'ccw': -1
 }
 
+def vector_add(v_1, v_2):
+    for i in range(len(v_1)):
+        yield v_1[i] + v_2[i]
+
+
 SHAPES = ['T', 'S', 'Z', 'J', 'L', 'I', 'O']
 
-LETTER_TO_SHAPE = {
+_shape = {
     'T':
     [[0, 1, 0],
      [1, 1, 1],
@@ -49,6 +69,28 @@ LETTER_TO_SHAPE = {
      [7, 7]]
 }
 
+
+def _rotate(mat, times):
+    output = deepcopy(mat)
+    for _ in range(times):
+        output = list(map(list, zip(*output[::-1])))
+    return output
+
+
+_occupied_shapes = dict((key, [_rotate(val, r)
+                               for r in range(4)]) for key, val in _shape.items())
+
+OCCUPIED = {}
+
+for shape_name, shape in _occupied_shapes.items():
+    OCCUPIED[shape_name] = [[] for rot in range(4)]
+    for rot in range(4):
+        for r_i, row in enumerate(shape[rot]):
+            for c_i, val in enumerate(row):
+                if val != 0:
+                    OCCUPIED[shape_name][rot].append((r_i, c_i))
+
+
 shape_values = {
     'T': 1,
     'S': 2,
@@ -70,25 +112,26 @@ VAL_TO_COLOR = {
     7: (255, 255, 0),
 }
 
+
 class _SRSTable():
     def __init__(self):
-        self._JLSTZ_table = (((+1, 0), (+1, +1), (0, -2), (+1, -2)),
-                             ((-1, 0), (-1, +1), (0, -2), (-1, -2)),
-                             ((+1, 0), (+1, -1), (0, +2), (+1, +2)),
-                             ((+1, 0), (+1, -1), (0, +2), (+1, +2)),
-                             ((-1, 0), (-1, +1), (0, -2), (-1, -2)),
-                             ((+1, 0), (+1, +1), (0, -2), (+1, -2)),
-                             ((-1, 0), (-1, -1), (0, +2), (-1, +2)),
-                             ((-1, 0), (-1, -1), (0, +2), (-1, +2)))
+        self._JLSTZ_table = (((0, 0), (+1, 0), (+1, +1), (0, -2), (+1, -2)),
+                             ((0, 0), (-1, 0), (-1, +1), (0, -2), (-1, -2)),
+                             ((0, 0), (+1, 0), (+1, -1), (0, +2), (+1, +2)),
+                             ((0, 0), (+1, 0), (+1, -1), (0, +2), (+1, +2)),
+                             ((0, 0), (-1, 0), (-1, +1), (0, -2), (-1, -2)),
+                             ((0, 0), (+1, 0), (+1, +1), (0, -2), (+1, -2)),
+                             ((0, 0), (-1, 0), (-1, -1), (0, +2), (-1, +2)),
+                             ((0, 0), (-1, 0), (-1, -1), (0, +2), (-1, +2)))
 
-        self._I_table = (((-1, 0), (+2, 0), (-1, +2), (+2, -1)),
-                         ((-2, 0), (+1, 0), (-2, -1), (+1, +2)),
-                         ((+2, 0), (-1, 0), (+2, +1), (-1, -2)),
-                         ((-1, 0), (+2, 0), (-1, +2), (+2, -1)),
-                         ((+1, 0), (-2, 0), (+1, -2), (-2, +1)),
-                         ((+2, 0), (-1, 0), (+2, +1), (-1, -2)),
-                         ((-2, 0), (+1, 0), (-2, -1), (+1, +2)),
-                         ((+1, 0), (-2, 0), (+1, -2), (-2, +1)))
+        self._I_table = (((0, 0), (-1, 0), (+2, 0), (-1, +2), (+2, -1)),
+                         ((0, 0), (-2, 0), (+1, 0), (-2, -1), (+1, +2)),
+                         ((0, 0), (+2, 0), (-1, 0), (+2, +1), (-1, -2)),
+                         ((0, 0), (-1, 0), (+2, 0), (-1, +2), (+2, -1)),
+                         ((0, 0), (+1, 0), (-2, 0), (+1, -2), (-2, +1)),
+                         ((0, 0), (+2, 0), (-1, 0), (+2, +1), (-1, -2)),
+                         ((0, 0), (-2, 0), (+1, 0), (-2, -1), (+1, +2)),
+                         ((0, 0), (+1, 0), (-2, 0), (+1, -2), (-2, +1)))
 
     def get_rotation(self, piece, starting, direc):
         table = None
@@ -107,5 +150,6 @@ class _SRSTable():
         for i in range(len(table[index])):
             offset = table[index][i]
             yield (-offset[1], offset[0])
+
 
 SRS_TABLE = _SRSTable()
